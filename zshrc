@@ -2,10 +2,6 @@
 [[ -f "${HOME}/Library/Application Support/amazon-q/shell/zshrc.pre.zsh" ]] && builtin source "${HOME}/Library/Application Support/amazon-q/shell/zshrc.pre.zsh"
 #!/bin/zsh
 
-#### MISE #####################################################################
-eval "$(~/.local/bin/mise activate zsh)"
-
-
 #### OPTIONS ##################################################################
 ## https://zsh.sourceforge.io/Doc/Release/Options.html
 setopt HIST_IGNORE_ALL_DUPS
@@ -73,6 +69,10 @@ export PATH="$HOME/.amplify/bin:$PATH"
 export PATH="$HOME/.guard/bin:$PATH"
 
 eval "$(starship init zsh)"
+
+#### MISE #####################################################################
+# you typically want to put mise activate at the end of your shell config so nothing overrides it.
+eval "$(~/.local/bin/mise activate zsh)"
 
 # Q post block. Keep at the bottom of this file.
 [[ -f "${HOME}/Library/Application Support/amazon-q/shell/zshrc.post.zsh" ]] && builtin source "${HOME}/Library/Application Support/amazon-q/shell/zshrc.post.zsh"
