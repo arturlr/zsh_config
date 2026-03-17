@@ -36,35 +36,51 @@ alias bat='batcat'
 
 #### FUNCTIONS ################################################################
 function gcommit() {
-  # 1. Check for staged changes
   if git diff --cached --quiet; then
     echo "No staged changes to commit."
     return 1
   fi
 
-  echo "Generating multi-line commit message..."
+  local diff_content
+  local line_count=\$(git diff --staged | wc -l)
+  local max_lines=500
 
-  # 2. Create a temporary file for the message
-  local msg_file=$(mktemp)
+  if [ "\$line_count" -gt "\$max_lines" ]; then
+    echo "⚠️ Diff is large (\$line_count lines). Sending file summary + partial diff to Gemini..."
+    diff_content=\$(git diff --staged --stat)
+    diff_content+=\$'\n\nDetailed snippet of changes:\n'
+    diff_content+=\$(git diff --staged | head -n 150)
+  else
+    diff_content=\$(git diff --staged)
+  fi
 
-  # 3. Stream the diff to Gemini and save to the file
-  # We ask for a body to avoid the "one-liner" limitation
-  git diff --staged | gemini "Write a Conventional Commit message for this diff.
+  echo "Generating commit message..."
+  local msg_file=\$(mktemp)
+
+  echo "\$diff_content" | gemini "Write a Conventional Commit message for this diff.
   Include a short summary line, a blank line, and a bulleted list of key changes.
-  Output ONLY the commit message text." > "$msg_file"
+  Output ONLY the commit message text." > "\$msg_file"
 
-  # 4. Check if the message generation actually worked
-  if [ ! -s "$msg_file" ]; then
-    echo "Failed to generate commit message."
-    rm "$msg_file"
+  if [ ! -s "\$msg_file" ]; then
+    echo "❌ Failed to generate commit message."
+    rm "\$msg_file"
     return 1
   fi
 
-  # 5. Commit using the file (-F) instead of a string (-m)
-  git commit -F "$msg_file"
+  git commit -F "\$msg_file"
+  rm "\$msg_file"
+}
 
-  # 6. Cleanup
-  rm "$msg_file"
+# Timestamps & Temp Files
+function ts() { date +"%Y-%m-%d %H:%M:%S"; }
+function iso() { date +"%Y-%m-%d"; }
+function tmpname() { echo "tempfile_\$(date +'%Y-%m-%d_%H-%M-%S')"; }
+
+# Fuzzy Find & Open (fzf + bat)
+function fo() {
+  local file
+  file=\$(fzf --preview 'batcat --color=always --style=numbers --line-range=:500 {}')
+  [[ -n "\$file" ]] && \${EDITOR:-nano} "\$file"
 }
 
 function ts {
