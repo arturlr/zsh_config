@@ -7,11 +7,31 @@ unsetopt inc_append_history
 unsetopt share_history
 
 #### ALIASES ##################################################################
-alias fd='find . -type d | sort'
-alias ff='find . -type f | sort'
-alias grep='grep --color=auto'
-alias k9='kill -9'
-alias ll='ls -lha'
+# Mise shortcuts
+alias me='mise edit'      # Edit local config
+alias mr='mise run'       # Run tasks
+alias ml='mise ls'        # List installed runtimes
+
+# Git Essentials (Standard but vital)
+alias gst='git status'
+alias gp='git push'
+alias gl='git pull'
+alias gco='git checkout'
+alias gcm='git commit -m'
+
+# Better 'ls' (Standard Ubuntu)
+alias ll='ls -alFh --color=auto --group-directories-first'
+alias l='ls -CF'
+
+# Quick reload of Zsh config
+alias reload='source ~/.zshrc'
+
+# Path cleaning: show PATH in a readable list
+alias path='echo $PATH | tr ":" "\n"'
+
+# Search for text in files (ripgrep)
+alias grep='rg'
+alias rgi='rg -i' # Case-insensitive search
 alias bat='batcat'
 
 #### FUNCTIONS ################################################################
