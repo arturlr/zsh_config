@@ -5,7 +5,7 @@ echo "Starting system initialization..."
 
 # 1. Update and install essentials
 sudo apt-get update -qq
-sudo apt-get install -y -qq zsh jq wget curl unzip ripgrep bat tmux git zip ca-certificates
+sudo apt-get install -y -qq zsh jq wget curl unzip ripgrep bat tmux git zip ca-certificates fd-find
 
 # 2. Install Starship (Prompt)
 if ! command -v starship &> /dev/null; then
