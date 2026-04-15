@@ -1,10 +1,22 @@
-#!/bin/zsh#### OPTIONS ##################################################################
+#!/bin/zsh
 
+#### OPTIONS ##################################################################
 ## https://zsh.sourceforge.io/Doc/Release/Options.html
 setopt HIST_IGNORE_ALL_DUPS
 setopt HIST_IGNORE_SPACE
 unsetopt inc_append_history
 unsetopt share_history
+
+### TMUX  
+if [[ -z "$TMUX" ]] && [[ -n "$SSH_CONNECTION" ]]; then
+    # Only run tmux if we ARE NOT in VS Code or Zed
+    if [[ "$TERM_PROGRAM" != "vscode" ]] && [[ "$TERM_PROGRAM" != "zed" ]]; then
+        tmux attach-session -t default || tmux new-session -s default
+    fi
+fi
+
+# Kiro CLI pre block. Keep at the top of this file.
+[[ -f "${HOME}/.local/share/kiro-cli/shell/zshrc.pre.zsh" ]] && builtin source "${HOME}/.local/share/kiro-cli/shell/zshrc.pre.zsh"
 
 #### ALIASES ##################################################################
 # Mise shortcuts
@@ -71,11 +83,6 @@ function gcommit() {
   rm "\$msg_file"
 }
 
-# Timestamps & Temp Files
-function ts() { date +"%Y-%m-%d %H:%M:%S"; }
-function iso() { date +"%Y-%m-%d"; }
-function tmpname() { echo "tempfile_\$(date +'%Y-%m-%d_%H-%M-%S')"; }
-
 # Fuzzy Find & Open (fzf + bat)
 function fo() {
   local file
@@ -99,7 +106,12 @@ function tmpname {
 }
 
 function bandwidth {
-  echo "$(echo "en$(route get cachefly.cachefly.net | grep interface | sed -n -e 's/^.*en//p')") $(wget http://cachefly.cachefly.net/100mb.test -O /dev/null --report-speed=bits 2>&1 | grep '\([0-9.]\+ [KMG]b/s\)')"
+  local url="http://cachefly.cachefly.net/100mb.test"
+  if [[ "$(uname)" == "Darwin" ]]; then
+    curl -o /dev/null -w "Download speed: %{speed_download} bytes/sec\n" -s "$url"
+  else
+    wget "$url" -O /dev/null --report-speed=bits 2>&1 | grep -oP '\d+[\.,]?\d*\s[KMG]?b/s'
+  fi
 }
 
 #### OH MY ZSH ################################################################
@@ -122,6 +134,20 @@ export LDFLAGS="-L/usr/local/opt/ruby/lib"
 export CPPFLAGS="-I/usr/local/opt/ruby/include"
 export PKG_CONFIG_PATH="/usr/local/opt/ruby/lib/pkgconfig"
 
+#### MISE #####################################################################
+# you typically want to put mise activate at the end of your shell config so nothing overrides it.
+eval "$(~/.local/bin/mise activate zsh)"
+
+## Java
+export JAVA_TOOLS_OPTIONS="-Dlog4j2.formatMsgNoLookups=true"
+# Adjust these paths as needed for your Linux environment
+# export JAVA_HOME=/usr/lib/jvm/java-8-amazon-corretto
+# export M2_HOME="/opt/maven"
+# PATH="${M2_HOME}/bin:${PATH}"
+
+## DOTNET
+export DOTNET_ROOT="$(mise where dotnet)"
+
 ## Rust
 export PATH="$HOME/.cargo/bin:$PATH"
 
@@ -134,8 +160,10 @@ export PATH="$HOME/.amplify/bin:$PATH"
 # Android
 export ANDROID_HOME="$HOME/Android/Sdk"
 
+# cfn-nag
+export PATH="$HOME/.guard/bin:$PATH"
+
 eval "$(starship init zsh)"
 
-#### MISE #####################################################################
-# you typically want to put mise activate at the end of your shell config so nothing overrides it.
-eval "$(~/.local/bin/mise activate zsh)"
+# Kiro CLI post block. Keep at the bottom of this file.
+[[ -f "${HOME}/.local/share/kiro-cli/shell/zshrc.post.zsh" ]] && builtin source "${HOME}/.local/share/kiro-cli/shell/zshrc.post.zsh"
