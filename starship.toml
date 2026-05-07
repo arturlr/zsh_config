@@ -1,53 +1,43 @@
-
 "$schema" = 'https://starship.rs/config-schema.json'
 
 add_newline = true
+command_timeout = 5000
 
 format = """
-$directory\
-$git_branch\
-$git_commit\
-$git_state\
-$git_status\
-$docker_context\
-$package\
-$c\
-$cmake\
-$dotnet\
-$golang\
-$java\
-$nodejs\
-$python\
-$ruby\
-$rust\
-$terraform\
-$conda\
-"""
-
-right_format = """
-$aws\
-$os\
-$cmd_duration\
-$hostname\
-$username\
+$os$username$aws $cmd_duration
+$directory $git_branch $dotnet $golang $java $nodejs $python
+$character
 """
 
 [aws]
-symbol = "  "
-format = 'on [$symbol($profile )(\($region\) )]($style)'
-style = 'bold yellow'
+symbol = " "
+format = ' [$symbol($profile )(\($region\) )](bold yellow)'
 
-[conda]
-symbol = " "
+[hostname]
+ssh_only = false
+format = '[$hostname](bold white) '
+disabled = false
 
-[dart]
-symbol = " "
+[username]
+style_user = 'white bold'
+style_root = 'red bold'
+format = '[\[$user\]]($style)'
+disabled = false
+show_always = true
+
+[cmd_duration]
+format = 'took [$duration](bold white) '
 
 [directory]
 read_only = " 󰌾"
 truncation_length = 3
 truncation_symbol = "~/…/"
 truncate_to_repo = true
+
+[localip]
+ssh_only = true
+format = '[$localipv4](bold) '
+disabled = false
 
 [docker_context]
 symbol = " "
@@ -57,9 +47,6 @@ symbol = " "
 
 [golang]
 symbol = " "
-
-[hostname]
-ssh_symbol = " "
 
 [java]
 symbol = " "
@@ -133,4 +120,3 @@ symbol = "󰟔 "
 
 [ruby]
 symbol = " "
-
