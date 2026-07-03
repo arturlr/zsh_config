@@ -7,7 +7,11 @@ setopt HIST_IGNORE_SPACE
 unsetopt inc_append_history
 unsetopt share_history
 
-### TMUX  
+### TMUX  ###
+if [[ "$TERM" == "xterm-ghostty" && -z "$TMUX" ]]; then
+  export TERM=xterm-256color
+fi
+
 if [[ -z "$TMUX" ]] && [[ -n "$SSH_CONNECTION" ]]; then
     # Only run tmux if we ARE NOT in VS Code or Zed
     if [[ "$TERM_PROGRAM" != "vscode" ]] && [[ "$TERM_PROGRAM" != "zed" ]]; then
@@ -38,8 +42,8 @@ alias l='ls -CF'
 # Quick reload of Zsh config
 alias reload='source ~/.zshrc'
 
-# Path cleaning: show PATH in a readable list
-alias path='echo $PATH | tr ":" "\n"'
+# Path cleaning: Native zsh array printer (faster, cleaner, no pipe spawned)
+alias path='print -l $path'
 
 # Search for text in files (ripgrep)
 alias grep='rg'
@@ -47,61 +51,135 @@ alias rgi='rg -i' # Case-insensitive search
 alias bat='batcat'
 
 #### FUNCTIONS ################################################################
-function gcommit() {
-  if git diff --cached --quiet; then
-    echo "No staged changes to commit."
-    return 1
+
+# Load fast Zsh native date/time module (removes external `date` process overhead)
+zmodload zsh/datetime
+
+# 1. Store a secret key in AWS Parameter Store as a SecureString
+ssm-set() {
+    if [ -z "$1" ] || [ -z "$2" ]; then
+        echo "Usage:  ssm-set <parameter-name> <value>"
+        echo "Ex:     ssm-set /prod/gemini/api_key AIzaSy..."
+        return 1
+    fi
+
+    local name="$1"
+    local value="$2"
+
+    echo "Uploading secure parameter to AWS..."
+    aws ssm put-parameter \
+        --name "$name" \
+        --value "$value" \
+        --type "SecureString" \
+        --overwrite
+
+    if [ $? -eq 0 ]; then
+        echo "Parameter '$name' successfully saved."
+    else
+        echo "Failed to save parameter."
+    fi
+}
+
+# 2. Retrieve a secret from AWS Parameter Store and export it
+ssm-get() {
+    if [ -z "$1" ] || [ -z "$2" ]; then
+        echo "Usage:  ssm-get <parameter-name> <env-var-to-export>"
+        echo "Ex:     ssm-get /prod/gemini/api_key GEMINI_API_KEY"
+        return 1
+    fi
+
+    local name="$1"
+    local env_var="$2"
+
+    echo "🔄 Fetching parameter from AWS..."
+    local secret_value
+    secret_value=$(aws ssm get-parameter \
+        --name "$name" \
+        --with-decryption \
+        --query "Parameter.Value" \
+        --output text 2>/dev/null)
+
+    if [ -z "$secret_value" ] || [ "$secret_value" = "None" ]; then
+        echo "Error: Could not retrieve or decrypt parameter '$name'."
+        return 1
+    fi
+
+    # Dynamically export it to the environment variable of choice
+    export "$env_var"="$secret_value"
+    echo "Exported '$name' to \$$env_var in your current session!"
+}
+
+# 3. Quick fuzzy finder switch for AWS CLI Profiles
+asp() {
+  local profile
+  profile=$(aws configure list-profiles 2>/dev/null | fzf --height 40% --layout=reverse --border)
+  if [[ -n "$profile" ]]; then
+    export AWS_PROFILE="$profile"
+    echo "☁️ Switched to AWS Profile: $AWS_PROFILE"
   fi
+}
 
-  local diff_content
-  local line_count=\$(git diff --staged | wc -l)
-  local max_lines=500
+## using aws logs tail ###
+ltail() {
+    local func_name=$1
+    local filter=$2
+    local log_group="/aws/lambda/$func_name"
 
-  if [ "\$line_count" -gt "\$max_lines" ]; then
-    echo "⚠️ Diff is large (\$line_count lines). Sending file summary + partial diff to Gemini..."
-    diff_content=\$(git diff --staged --stat)
-    diff_content+=\$'\n\nDetailed snippet of changes:\n'
-    diff_content+=\$(git diff --staged | head -n 150)
-  else
-    diff_content=\$(git diff --staged)
-  fi
+    if [[ -z "$func_name" ]]; then
+        echo "Usage: ltail <function_name> [filter_pattern]"
+        return 1
+    fi
 
-  echo "Generating commit message..."
-  local msg_file=\$(mktemp)
+    if [[ -n "$filter" ]]; then
+        echo "Tailing $log_group with filter: $filter"
+        # --follow ensures it stays open; rg handles the filtering
+        aws logs tail "$log_group" --follow --format short | rg "$filter"
+    else
+        echo "Tailing $log_group (no filter)..."
+        aws logs tail "$log_group" --follow --format short
+    fi
+}
 
-  echo "\$diff_content" | gemini "Write a Conventional Commit message for this diff.
-  Include a short summary line, a blank line, and a bulleted list of key changes.
-  Output ONLY the commit message text." > "\$msg_file"
+# Function to find errors in Lambda logs
+# Usage: lerr <function_name> [search_term]
+function lerr() {
+    local func_name=$1
+    local search_term=${2:-"ERROR"} # Defaults to "ERROR" if no 2nd arg is provided
+    local log_group="/aws/lambda/$func_name"
 
-  if [ ! -s "\$msg_file" ]; then
-    echo "❌ Failed to generate commit message."
-    rm "\$msg_file"
-    return 1
-  fi
+    if [[ -z "$func_name" ]]; then
+        echo "Usage: lerr <function_name> [search_term]"
+        return 1
+    fi
 
-  git commit -F "\$msg_file"
-  rm "\$msg_file"
+    echo "Searching $log_group for \"$search_term\"..."
+
+    aws logs filter-log-events \
+        --log-group-name "$log_group" \
+        --filter-pattern "$search_term" \
+        --interleaved \
+        --query 'events[*].[timestamp, message]' \
+        --output table
 }
 
 # Fuzzy Find & Open (fzf + bat)
 function fo() {
   local file
-  file=\$(fzf --preview 'batcat --color=always --style=numbers --line-range=:500 {}')
-  [[ -n "\$file" ]] && \${EDITOR:-nano} "\$file"
+  file=$(fzf --preview 'batcat --color=always --style=numbers --line-range=:500 {}')
+  [[ -n "$file" ]] && ${EDITOR:-nano} "$file"
 }
 
 function ts {
-  iso_stamp=`date +"%Y-%m-%d %H:%M:%S"`
-  echo $iso_stamp
+  strftime "%Y-%m-%d %H:%M:%S" $EPOCHSECONDS
 }
 
 function iso {
-  iso_stamp=`date +"%Y-%m-%d"`
-  echo $iso_stamp
+  strftime "%Y-%m-%d" $EPOCHSECONDS
 }
 
 function tmpname {
-  local name=`date +"%Y-%m-%d_%H-%M-%S"`
+  local name
+  strftime -v name "%Y-%m-%d_%H-%M-%S" $EPOCHSECONDS
   echo "tempfile_$name"
 }
 
@@ -140,13 +218,9 @@ eval "$(~/.local/bin/mise activate zsh)"
 
 ## Java
 export JAVA_TOOLS_OPTIONS="-Dlog4j2.formatMsgNoLookups=true"
-# Adjust these paths as needed for your Linux environment
-# export JAVA_HOME=/usr/lib/jvm/java-8-amazon-corretto
-# export M2_HOME="/opt/maven"
-# PATH="${M2_HOME}/bin:${PATH}"
 
-## DOTNET
-export DOTNET_ROOT="$(mise where dotnet)"
+## DOTNET (Silenced missing path checks during startup)
+export DOTNET_ROOT="$(mise where dotnet 2>/dev/null)"
 
 ## Rust
 export PATH="$HOME/.cargo/bin:$PATH"
@@ -167,3 +241,14 @@ eval "$(starship init zsh)"
 
 # Kiro CLI post block. Keep at the bottom of this file.
 [[ -f "${HOME}/.local/share/kiro-cli/shell/zshrc.post.zsh" ]] && builtin source "${HOME}/.local/share/kiro-cli/shell/zshrc.post.zsh"
+
+# Added by Antigravity CLI installer
+export PATH="/home/arturlr/.local/bin:$PATH"
+
+# -----------------------------------------------------------------------------
+# AWS PARAMETER MANIFEST (Add automated ssm-get commands here later if needed)
+# If the variable isn't set yet, dynamically grab it right now
+#if [[ -z "$GEMINI_API_KEY" ]]; then
+#    ssm-get /dev/apis/gemini_key GEMINI_API_KEY || return 1
+#fi
+# -----------------------------------------------------------------------------
