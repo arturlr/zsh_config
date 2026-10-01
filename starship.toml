@@ -1,21 +1,32 @@
 "$schema" = 'https://starship.rs/config-schema.json'
 
-add_newline = true
+#add_newline = true
 command_timeout = 5000
 
 format = """
-$os$username$aws $cmd_duration
-$directory $git_branch $dotnet $golang $java $nodejs $python
+$os$hostname$directory$git_branch$aws$cmd_duration
 $character
 """
 
 [aws]
 symbol = " "
-format = ' [$symbol($profile )(\($region\) )](bold yellow)'
+format = '[$symbol($profile )(\($region\) )](bold yellow)'
+
+[aws.region_aliases]
+ap-southeast-2 = 'syd'
+us-east-1 = 'iad'
+ca-central-1 = 'yul'
+us-west-2 = 'pdx'
+us-east-2 = 'cmh'
+us-west-1 = 'sfo'
+sa-east-1 = 'gru'
+eu-west-1 = 'dub'
+eu-central-1 = 'fra'
+eu-central-2 = 'zrh'
 
 [hostname]
 ssh_only = false
-format = '[$hostname](bold white) '
+format = '[$hostname ](bold white)'
 disabled = false
 
 [username]
@@ -26,13 +37,14 @@ disabled = false
 show_always = true
 
 [cmd_duration]
-format = 'took [$duration](bold white) '
+format = 'took [$duration](bold white)'
 
 [directory]
 read_only = " 󰌾"
 truncation_length = 3
 truncation_symbol = "~/…/"
 truncate_to_repo = true
+format = '[$path]($style)[$read_only]($read_only_style) '
 
 [localip]
 ssh_only = true
@@ -44,6 +56,7 @@ symbol = " "
 
 [git_branch]
 symbol = " "
+format = 'on [$symbol$branch]($style) '
 
 [golang]
 symbol = " "
@@ -62,7 +75,7 @@ symbol = " "
 
 [os]
 disabled = false
-#format = "$symbol"
+#format = '[$symbol](bold white) '
 
 [os.symbols]
 Alpaquita = " "
